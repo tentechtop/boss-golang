@@ -1,0 +1,21 @@
+# Local runtime data and backups may contain personal profiles, session state, or logs.
+/data/
+/backups/
+
+# Local build output and runtime artifacts.
+/dist/
+*.exe
+*.log
+
+# Local developer and assistant tooling state.
+/.codebuddy/
+/.codex-build/
+/.edge-copilot-profile/
+
+# Local environment configuration may contain credentials.
+.env
+.env.*
+!.env.example
+
+# Reference projects are not part of this application's build.
+/references/

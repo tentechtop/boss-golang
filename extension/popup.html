@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>AI 求职 Copilot</title>
+  <style>
+    body{width:520px;margin:0;padding:14px;font-family:Arial,"Microsoft YaHei",sans-serif;color:#1f2937;background:#f9fafb}
+    h1{font-size:18px;margin:0 0 10px}h2{font-size:14px;margin:14px 0 8px}
+    button{min-height:34px;border:0;border-radius:6px;margin:4px 4px 4px 0;padding:8px 10px;cursor:pointer;font-weight:600}
+    .primary{background:#0f766e;color:#fff}.secondary{background:#e5e7eb;color:#111827}.danger{background:#fee2e2;color:#991b1b}
+    input,select,textarea{width:100%;box-sizing:border-box;border:1px solid #d1d5db;border-radius:6px;padding:8px;font:inherit;background:#fff}
+    textarea{resize:vertical}
+    .meta{font-size:12px;color:#6b7280;margin-bottom:8px;line-height:1.5}.score{font-weight:700;color:#0f766e}
+    .list{display:grid;gap:8px;max-height:170px;overflow:auto;margin-top:8px}
+    .item{padding:8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;font-size:12px;line-height:1.45}
+    .item strong{display:block;font-size:13px;color:#111827}.high{border-color:#0f766e}.blocked{border-color:#ef4444;background:#fff7f7}
+    .progress{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+    .progress span{padding:6px;border-radius:6px;background:#eef2ff;color:#3730a3;font-size:12px;text-align:center}
+    .strategy-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+    .strategy-grid label{display:grid;gap:4px;font-size:12px;color:#4b5563}
+    .strategy-wide{grid-column:1 / -1}
+  </style>
+</head>
+<body>
+  <h1>AI 求职 Copilot</h1>
+  <div id="meta" class="meta">打开 BOSS 搜索结果页后，先扫描当前可见岗位。</div>
+
+  <h2>投递策略</h2>
+  <div class="strategy-grid">
+    <label>最低匹配分<input id="strategyMinScore" type="number" min="1" max="100"></label>
+    <label>批量准备上限<input id="strategyBatchLimit" type="number" min="1" max="20"></label>
+    <label>默认语气
+      <select id="strategyChatMode">
+        <option>专业稳重</option>
+        <option>积极主动</option>
+        <option>简短直接</option>
+      </select>
+    </label>
+    <label>岗位必须包含<textarea id="includeTitleKeywords" rows="2" placeholder="Go, 后端"></textarea></label>
+    <label>岗位屏蔽词<textarea id="excludeTitleKeywords" rows="2" placeholder="外包, 驻场"></textarea></label>
+    <label>公司屏蔽词<textarea id="excludeCompanyKeywords" rows="2" placeholder="某公司"></textarea></label>
+    <label class="strategy-wide">开场白偏好<textarea id="strategyGreetingPrompt" rows="2" placeholder="例如：突出 Go 后端、分布式、高并发项目，不编造经历"></textarea></label>
+  </div>
+  <button id="saveStrategyButton" class="secondary">保存策略</button>
+
+  <h2>搜索结果页</h2>
+  <button id="openBossJobsButton" class="secondary">打开 BOSS 职位页</button>
+  <button id="oneClickScanButton" class="primary" style="background:#dc2626">🚀 一键全自动扫描</button>
+  <button id="oneClickFullPipelineButton" class="primary" style="background:#7c3aed">⚡ 一键全流程（扫描+投递）</button>
+  <button id="scanVisibleButton" class="primary">扫描可见岗位</button>
+  <button id="addHighMatchButton" class="secondary">加入高匹配</button>
+  <button id="addAllButton" class="secondary">加入全部</button>
+  <div id="oneClickScanStatus" style="display:none;font-size:12px;color:#0f766e;padding:8px;background:#ecfdf5;border-radius:6px;margin-top:6px;text-align:center"></div>
+  <div id="visibleJobs" class="list"></div>
+
+  <h2>🤖 全自动运行中</h2>
+  <div style="display:grid;gap:8px;margin-top:8px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <label style="font-size:12px;color:#4b5563">扫描间隔(分钟)<input id="autoScanInterval" type="number" min="1" max="60" value="5"></label>
+      <label style="font-size:12px;color:#4b5563">最大聊天轮次<input id="autoMaxRounds" type="number" min="1" max="20" value="10"></label>
+    </div>
+    <label style="font-size:12px;color:#4b5563">最低匹配分<input id="autoMinScore" type="number" min="1" max="100" value="50"></label>
+    <button id="saveAutoConfigButton" class="primary" style="background:#059669">保存配置</button>
+    <div id="fullAutoStatus" style="font-size:12px;color:#6b7280;padding:6px;background:#eef2ff;border-radius:4px;text-align:center">自动运行中 - 插件安装后自动启动</div>
+  </div>
+
+  <h2>投递流水线</h2>
+  <div id="queueProgress" class="progress"></div>
+  <button id="loadQueueButton" class="secondary">刷新队列</button>
+  <button id="prepareAllButton" class="primary">一键准备全部</button>
+  <button id="openNextButton" class="primary">打开下一个</button>
+  <button id="batchAutoSendButton" class="primary" style="background:#7c3aed">⚡ 批量全部自动发送</button>
+  <div id="queueItems" class="list"></div>
+
+  <h2>当前岗位草稿</h2>
+  <textarea id="replyOutput" rows="7" placeholder="打开下一个岗位后，这里会显示开场白草稿"></textarea>
+  <button id="fillButton" class="primary">填入草稿</button>
+  <button id="markDeliveredButton" class="secondary">标记已投递</button>
+  <button id="markSkippedButton" class="secondary">跳过</button>
+  <button id="markRejectedButton" class="danger">不合适</button>
+
+  <h2>🤖 聊天助手</h2>
+  <div style="display:grid;gap:8px;margin-top:8px">
+    <label style="font-size:12px;color:#4b5563">最大轮次<input id="autoChatMaxRounds" type="number" min="1" max="20" value="10"></label>
+    <div style="display:flex;gap:6px;align-items:center">
+      <input type="checkbox" id="autoSendResumeCheckbox" style="width:16px;height:16px;margin:0">
+      <label for="autoSendResumeCheckbox" style="font-size:12px;color:#4b5563;cursor:pointer">HR索要简历时自动发送 BOSS 第一个简历</label>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button id="startAutoChatButton" class="primary" style="flex:1">启动自动填入</button>
+      <button id="stopAutoChatButton" class="danger" style="flex:1">停止</button>
+    </div>
+    <div id="autoChatStatus" style="font-size:12px;color:#6b7280;padding:6px;background:#f3f4f6;border-radius:4px;text-align:center">就绪 - AI 自动填入，发送由你确认</div>
+  </div>
+
+  <h2>单岗位工具</h2>
+  <button id="extractButton" class="secondary">读取当前岗位</button>
+  <button id="analyzeButton" class="secondary">生成当前岗位话术</button>
+
+  <script src="boss-search-policy.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

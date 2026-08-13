@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 求职 Copilot</title>
+  <link rel="stylesheet" href="/styles.css?v=2026081002">
+</head>
+<body class="single-page-mode">
+  <div class="page-shell">
+    <section id="extensionInstallBanner" class="extension-install-banner" aria-live="polite" aria-atomic="true" hidden>
+      <h3>缺少扩展连接，无法自动执行</h3>
+      <p id="extensionInstallMessage">系统当前未检测到扩展桥接，建议先安装并启用 AI 助理浏览器扩展后再使用一键自动化。</p>
+      <p id="extensionInstallStatus" class="extension-install-status" role="status" aria-live="polite"></p>
+      <div class="actions">
+        <a id="extensionOpenPageButton" class="primary-button" href="chrome://extensions/" target="_blank" rel="noopener">打开扩展管理页</a>
+        <a id="extensionPackageButton" class="secondary-button" href="/api/extension/package" target="_blank" rel="noopener">下载扩展安装包</a>
+        <button id="extensionLaunchButton" class="secondary-button" type="button">点击即安装（含启动）</button>
+        <button id="extensionDismissButton" class="secondary-button" type="button">我已处理</button>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <section id="dashboard" class="view active section-block">
+        <div class="section-title compact-title-bar">
+          <div>
+            <span class="section-kicker">首屏入口</span>
+            <h2>自动投递</h2>
+            <p>只填岗位、城市和薪资范围，点一次就会持续自动找岗、发送开场白并继续投递。</p>
+          </div>
+          <button id="refreshDashboard" class="secondary-button compact-refresh-button" type="button">刷新</button>
+        </div>
+
+        <div class="dashboard-hero-grid">
+          <div class="panel accessibility-panel spotlight-panel minimal-form-panel">
+            <div class="section-header accessibility-header">
+              <div>
+                <h3>开始自动投递</h3>
+                <p>系统会自动拉取符合条件的岗位、自动加入队列、自动发送开场白，并持续和 HR 聊天。</p>
+              </div>
+              <div class="actions">
+                <button id="accessibleAutoApplyButton" class="primary-button hero-primary-button" type="button">开始自动求职</button>
+                <button id="accessibleStopAutoModeButton" class="secondary-button" type="button">停止持续自动找岗</button>
+              </div>
+            </div>
+            <div class="resume-state-strip">
+              <strong id="accessibleResumeState">当前将使用系统里最近保存的一份简历。</strong>
+              <span id="accessibleResumeHint">如果这是第一次使用，请展开下方“一次性补充简历”。</span>
+            </div>
+            <div class="grid simplified-grid">
+              <label>目标岗位
+                <input id="accessibleTargetRole" placeholder="例如：Go 后端工程师">
+                <span class="field-hint">只写你最想找的岗位名称。</span>
+              </label>
+              <label>目标城市
+                <input id="accessibleTargetCity" placeholder="例如：上海">
+                <span class="field-hint">写城市名即可，系统会自动换成搜索参数。</span>
+              </label>
+              <label>最低月薪(K)
+                <input id="accessibleMinSalary" type="number" min="0" max="300" placeholder="例如：20">
+                <span class="field-hint">用于自动过滤太低的岗位。</span>
+              </label>
+              <label>最高月薪(K，可留空)
+                <input id="accessibleMaxSalary" type="number" min="0" max="300" placeholder="例如：35">
+                <span class="field-hint">留空后只过滤低于最低月薪的岗位，薪资更高的岗位也会投递。</span>
+              </label>
+            </div>
+            <section class="ai-reply-setup" aria-labelledby="aiReplySetupTitle">
+              <div class="section-header">
+                <div>
+                  <h4 id="aiReplySetupTitle">HR 自动回复</h4>
+                  <p class="helper-text">选择生成 HR 回复的模型来源；模型不可用时使用岗位和简历本地规则兜底。</p>
+                </div>
+                <button id="accessibleSaveAIReplySettingsButton" class="secondary-button" type="button">保存回复设置</button>
+              </div>
+              <div class="grid simplified-grid ai-reply-fields">
+                <label>回复模型来源
+                  <select id="aiReplyProvider">
+                    <option value="codex">本地 Codex</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="zhipu">智谱 GLM</option>
+                  </select>
+                </label>
+                <div id="deepSeekReplySettings" class="grid two-columns model-provider-settings" hidden>
+                  <label>DeepSeek 模型
+                    <select id="deepSeekModel">
+                      <option value="deepseek-v4-flash">DeepSeek V4 Flash（速度优先）</option>
+                      <option value="deepseek-v4-pro">DeepSeek V4 Pro（效果优先）</option>
+                    </select>
+                  </label>
+                  <label>DeepSeek API Key
+                    <input id="deepSeekApiKey" type="password" autocomplete="off" spellcheck="false" placeholder="选择 DeepSeek 后填写；留空保留已有 Key">
+                  </label>
+                </div>
+                <div id="zhipuReplySettings" class="grid two-columns model-provider-settings" hidden>
+                  <label>智谱模型
+                    <select id="zhipuModel">
+                      <option value="glm-4.7-flash">GLM-4.7-Flash（免费）</option>
+                      <option value="glm-4.7">GLM-4.7（效果优先）</option>
+                      <option value="glm-5.2">GLM-5.2（旗舰）</option>
+                    </select>
+                  </label>
+                  <label>智谱 API Key
+                    <input id="zhipuApiKey" type="password" autocomplete="off" spellcheck="false" placeholder="选择智谱后填写；留空保留已有 Key">
+                  </label>
+                </div>
+              </div>
+              <p id="aiReplyStatus" class="helper-text" aria-live="polite">正在读取回复模型设置...</p>
+            </section>
+            <div id="accessibleAutoStatus" class="accessible-status" aria-live="polite">等待开始。建议先填写岗位、城市和薪资范围，再点击“开始自动求职”。</div>
+            <details class="fold-panel compact-setup-panel">
+              <summary>
+                <span>上传或补充简历</span>
+                <small>非必填</small>
+              </summary>
+              <div class="fold-body">
+                <label class="accessible-full-span resume-upload-field">上传一个文件（非必填）
+                  <input id="accessibleResumeFile" type="file" accept=".txt,.md,.docx,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="accessibleResumeFileHint">
+                  <span id="accessibleResumeFileHint" class="field-hint">支持 TXT、Markdown、DOCX，不限制文件大小。不上传时自动使用最近保存的简历。</span>
+                </label>
+                <label class="accessible-full-span">或者粘贴简历文本
+                  <textarea id="accessibleResumeText" rows="8" placeholder="只有系统里还没有简历时，才需要在这里粘贴一次完整简历。"></textarea>
+                  <span class="field-hint">保存后，后续开始自动投递时会自动复用最近一份简历。</span>
+                </label>
+              </div>
+            </details>
+          </div>
+
+          <aside class="guide-rail" aria-label="系统引导与进度">
+            <div class="panel assistant-panel">
+              <span class="micro-label">系统状态</span>
+              <h3>下一步</h3>
+              <p id="accessiblePrimaryHint" class="assistant-primary-text">先填写岗位、城市和薪资范围，系统就可以开始自动投递。</p>
+              <div id="accessibleReadiness" class="readiness-badge" aria-live="polite">尚未就绪</div>
+              <div id="accessibleProgressFacts" class="fact-list" aria-live="polite"></div>
+            </div>
+
+            <div class="panel status-panel status-panel-compact">
+              <span class="micro-label">当前沟通</span>
+              <h3>正在和哪个岗位沟通</h3>
+              <div id="accessibleCurrentConversation" class="current-chat-card" aria-live="polite">当前还没有进入自动沟通。</div>
+            </div>
+
+            <div class="panel status-panel status-panel-compact">
+              <span class="micro-label">自动队列</span>
+              <h3>投递队列</h3>
+              <div id="accessibleQueueSummary" class="tag-list"></div>
+              <div id="accessibleQueueList" class="result-list queue-preview-list"></div>
+            </div>
+          </aside>
+        </div>
+
+        <details class="fold-panel support-details">
+          <summary>
+            <span>查看系统数据与最近岗位</span>
+            <small>可选展开</small>
+          </summary>
+          <div class="fold-body">
+            <div class="metrics">
+              <div class="metric"><span id="projectCount">0</span><small>项目</small></div>
+              <div class="metric"><span id="resumeCount">0</span><small>简历</small></div>
+              <div class="metric"><span id="jobCount">0</span><small>岗位</small></div>
+              <div class="metric"><span id="queueCount">0</span><small>队列</small></div>
+              <div class="metric"><span id="feedbackCount">0</span><small>反馈</small></div>
+            </div>
+
+            <div class="grid dashboard-grid">
+              <div class="panel nested-panel">
+                <h3>反馈状态</h3>
+                <div id="statusCounts" class="tag-list"></div>
+              </div>
+              <div class="panel nested-panel">
+                <h3>投递队列状态</h3>
+                <div id="queueStatusCounts" class="tag-list"></div>
+              </div>
+            </div>
+
+            <div class="panel nested-panel">
+              <div class="section-header">
+                <div>
+                  <h3>最近抓取岗位</h3>
+                  <p>方便快速确认自动扫描是否正常工作。</p>
+                </div>
+              </div>
+              <div id="recentJobList" class="result-list compact-list"></div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section id="profile" class="view section-block">
+        <div class="section-title">
+          <div>
+            <span class="section-kicker">简历材料</span>
+            <h2>能力画像与简历预览</h2>
+            <p>选择本地项目，只生成基于事实证据的简历内容，避免编造经历。</p>
+          </div>
+        </div>
+
+        <details class="fold-panel">
+          <summary>
+            <span>展开简历画像与项目证据</span>
+            <small>可选</small>
+          </summary>
+          <div class="fold-body">
+            <div class="grid two-columns">
+              <div class="panel nested-panel">
+                <h3>基础信息</h3>
+                <label>姓名<input id="nameInput" placeholder="张三"></label>
+                <label>求职意向<input id="roleInput" placeholder="Go 后端开发工程师"></label>
+                <label>工作年限<input id="yearsInput" placeholder="5 年"></label>
+                <label>城市<input id="locationInput" placeholder="上海"></label>
+                <label>邮箱<input id="emailInput" placeholder="请输入邮箱"></label>
+                <label>手机<input id="phoneInput" placeholder="请输入手机号"></label>
+                <label>教育经历<input id="educationInput" placeholder="本科 / 计算机科学与技术"></label>
+                <label>技能栈<input id="skillsInput" placeholder="Go, MySQL, Redis, 微服务"></label>
+              </div>
+              <div class="panel nested-panel">
+                <div class="section-header">
+                  <div>
+                    <h3>项目路径</h3>
+                    <p>每行一个本地项目目录，系统会提取可用于简历的真实项目证据。</p>
+                  </div>
+                  <div class="actions">
+                    <button id="scanProjectsButton" class="primary-button" type="button">扫描项目</button>
+                    <button id="generateResumeButton" class="secondary-button" type="button">生成基础简历</button>
+                  </div>
+                </div>
+                <textarea id="projectPathsInput" rows="8" placeholder="每行一个本地项目目录，例如：&#10;F:\workSpace2029\project-a&#10;F:\workSpace2029\project-b"></textarea>
+                <div id="projectList" class="result-list"></div>
+              </div>
+            </div>
+
+            <div class="panel nested-panel">
+              <h3>简历预览</h3>
+              <pre id="resumePreview" class="markdown-preview"></pre>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section id="job" class="view section-block">
+        <div class="section-title">
+          <div>
+            <span class="section-kicker">自动筛岗</span>
+            <h2>岗位工作台</h2>
+            <p>所有岗位动作集中在一个页面：策略、抓取、自动模式、队列和手工分析都在这里。</p>
+          </div>
+        </div>
+
+        <details class="fold-panel" open>
+          <summary>
+            <span>展开自动找岗、自动队列和运行结果</span>
+            <small>核心功能</small>
+          </summary>
+          <div class="fold-body">
+            <div class="panel nested-panel">
+              <div class="section-header">
+                <div>
+                  <h3>岗位抓取与全自动流程</h3>
+                  <p>优先用“一键全自动扫描”或“一键全流程”，减少重复点击。</p>
+                </div>
+                <div class="actions">
+                  <button id="oneClickScanButton" class="primary-button danger-button" type="button">一键全自动扫描</button>
+                  <button id="oneClickFullPipelineButton" class="primary-button accent-button" type="button">一键全流程</button>
+                  <button id="openBossJobsButton" class="primary-button" type="button">自动拉取 BOSS 岗位</button>
+                  <button id="refreshJobsButton" class="secondary-button" type="button">刷新本地岗位</button>
+                </div>
+              </div>
+              <div id="capturedJobList" class="result-list job-list"></div>
+            </div>
+
+            <div class="grid two-columns">
+              <div class="panel nested-panel">
+                <div class="section-header">
+                  <div>
+                    <h3>持续自动模式</h3>
+                    <p>适合需要持续找岗和自动回复的场景。</p>
+                  </div>
+                  <div class="actions">
+                    <button id="refreshAutoStatusButton" class="secondary-button" type="button">刷新状态</button>
+                    <button id="saveAutoConfigButton" class="primary-button success-button" type="button">保存配置</button>
+                  </div>
+                </div>
+                <label>扫描间隔（分钟）<input id="autoScanInterval" type="number" min="1" max="60" value="1"></label>
+                <label>最大聊天轮次<input id="autoMaxRounds" type="number" min="1" max="20" value="10"></label>
+                <label>最低匹配分<input id="autoMinScore" type="number" min="1" max="100" value="50"></label>
+                <p class="helper-text">插件安装后自动运行，浏览器启动后自动恢复。修改配置后点击“保存配置”生效。</p>
+              </div>
+              <div class="panel status-panel nested-panel">
+                <h3>全自动状态</h3>
+                <div id="fullAutoStatus">
+                  <strong>状态：</strong>等待中<br>
+                  <strong>阶段：</strong>等待中...<br>
+                  <strong>已扫描：</strong>0 岗位<br>
+                  <strong>已聊天：</strong>0 次<br>
+                  <strong>上次扫描：</strong>-<br>
+                  <strong>上次聊天：</strong>-
+                </div>
+              </div>
+            </div>
+
+            <div class="panel nested-panel">
+              <div class="section-header">
+                <div>
+                  <h3>半自动批处理</h3>
+                  <p>当你想保留人为确认时，在这里逐个或批量推进队列。</p>
+                </div>
+                <div class="actions">
+                  <button id="enqueueAllJobsButton" class="secondary-button" type="button">全部加入队列</button>
+                  <button id="prepareQueueButton" class="secondary-button" type="button">批量生成话术</button>
+                  <button id="fillNextQueueButton" class="primary-button" type="button">打开下一个并填入</button>
+                  <button id="refreshQueueButton" class="secondary-button" type="button">刷新队列</button>
+                  <button id="autoChatNextButton" class="primary-button danger-button" type="button">投递下一个</button>
+                  <button id="batchAutoSendAllButton" class="primary-button accent-button" type="button">批量全部自动发送</button>
+                </div>
+              </div>
+              <div id="deliveryQueueProgress" class="tag-list"></div>
+              <div id="deliveryQueueList" class="result-list job-list"></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="fold-panel">
+          <summary>
+            <span>展开高级投递策略</span>
+            <small>可选</small>
+          </summary>
+          <div class="fold-body">
+            <div class="panel nested-panel">
+              <div class="section-header">
+                <div>
+                  <h3>投递策略</h3>
+                  <p>先设筛选规则，减少不必要的岗位抓取和无效沟通。</p>
+                </div>
+                <div class="actions">
+                  <button id="saveStrategyButton" class="primary-button" type="button">保存策略</button>
+                </div>
+              </div>
+              <div class="grid three-columns">
+                <label>最低匹配分<input id="strategyMinScoreInput" type="number" min="1" max="100"></label>
+                <label>批量准备上限<input id="strategyBatchLimitInput" type="number" min="1" max="20"></label>
+                <label>默认沟通语气
+                  <select id="strategyChatModeInput">
+                    <option>专业稳重</option>
+                    <option>积极主动</option>
+                    <option>简短直接</option>
+                  </select>
+                </label>
+              </div>
+              <div class="grid three-columns">
+                <label>最低月薪(K)<input id="strategyMinSalaryInput" type="number" min="0" max="300" placeholder="例如：18"></label>
+                <label>最高月薪(K，可留空)<input id="strategyMaxSalaryInput" type="number" min="0" max="300" placeholder="例如：40"></label>
+                <label class="checkbox-label"><input id="strategyAllowUnknownSalaryInput" type="checkbox">允许未知薪资</label>
+              </div>
+              <div class="grid three-columns">
+                <label>岗位必须包含<textarea id="strategyIncludeTitleInput" rows="3" placeholder="Go, 后端"></textarea></label>
+                <label>岗位屏蔽词<textarea id="strategyExcludeTitleInput" rows="3" placeholder="外包, 驻场"></textarea></label>
+                <label>公司屏蔽词<textarea id="strategyExcludeCompanyInput" rows="3" placeholder="公司名"></textarea></label>
+              </div>
+              <label>开场白偏好<textarea id="strategyGreetingPromptInput" rows="3" placeholder="例如：突出 Go 后端、分布式、高并发项目，不编造经历"></textarea></label>
+            </div>
+          </div>
+        </details>
+
+        <details class="fold-panel">
+          <summary>
+            <span>展开手工岗位分析与话术</span>
+            <small>可选</small>
+          </summary>
+          <div class="fold-body">
+            <div class="grid two-columns">
+              <div class="panel nested-panel">
+                <h3>岗位信息</h3>
+                <label>公司<input id="companyInput" placeholder="公司名称"></label>
+                <label>岗位<input id="jobTitleInput" placeholder="Go 后端开发"></label>
+                <label>岗位 JD<textarea id="jobDescriptionInput" rows="12" placeholder="粘贴岗位描述"></textarea></label>
+                <div class="actions">
+                  <button id="analyzeJobButton" class="primary-button" type="button">分析岗位</button>
+                  <button id="tailorResumeButton" class="secondary-button" type="button">生成定制简历</button>
+                </div>
+              </div>
+              <div class="panel nested-panel">
+                <h3>匹配结果与话术</h3>
+                <div id="jobAnalysisResult" class="analysis-box"></div>
+                <label>沟通语气
+                  <select id="chatModeInput">
+                    <option>专业稳重</option>
+                    <option>积极主动</option>
+                    <option>简短直接</option>
+                  </select>
+                </label>
+                <button id="suggestChatButton" class="primary-button" type="button">生成话术</button>
+                <textarea id="chatSuggestionOutput" rows="8" readonly></textarea>
+                <button id="sandboxButton" class="secondary-button" type="button">跑沙箱自动聊天</button>
+                <div id="sandboxOutput" class="result-list"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section id="records" class="view section-block">
+        <div class="section-title">
+          <div>
+            <span class="section-kicker">结果反馈</span>
+            <h2>沟通记录</h2>
+            <p>用最少输入记录反馈，后续继续优化简历、筛岗策略和开场白。</p>
+          </div>
+        </div>
+
+        <details class="fold-panel">
+          <summary>
+            <span>展开沟通反馈记录</span>
+            <small>可选</small>
+          </summary>
+          <div class="fold-body">
+            <div class="grid two-columns">
+              <div class="panel nested-panel">
+                <h3>记录反馈</h3>
+                <div class="grid three-columns">
+                  <label>状态
+                    <select id="feedbackStatusInput">
+                      <option>已读未回</option>
+                      <option>已回复</option>
+                      <option>已约面</option>
+                      <option>不合适</option>
+                      <option>薪资不符</option>
+                    </select>
+                  </label>
+                  <label>公司<input id="feedbackCompanyInput" placeholder="公司名称"></label>
+                  <label>备注<input id="feedbackNotesInput" placeholder="一句话记录原因"></label>
+                </div>
+                <button id="saveFeedbackButton" class="primary-button" type="button">保存反馈</button>
+              </div>
+              <div class="panel nested-panel">
+                <h3>历史反馈</h3>
+                <div id="feedbackList" class="result-list"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <div id="debugStatus" class="debug-status">前端脚本加载中...</div>
+  <div id="toast" class="toast"></div>
+
+  <script src="/app.js?v=2026081002"></script>
+  <script src="/accessibility.js?v=2026081002"></script>
+  <script src="/extension-install.js?v=2026063021"></script>
+  <script>
+    (function () {
+      function setStatus(message) {
+        var status = document.getElementById("debugStatus");
+        if (status) {
+          status.textContent = message;
+        }
+      }
+      function escapeHTML(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+      function splitKeywords(value) {
+        return String(value || "").split(/[,，\n]/).map(function (item) { return item.trim(); }).filter(Boolean);
+      }
+      function readNumber(id, fallback, min, max) {
+        var value = Number.parseInt((document.getElementById(id) || {}).value, 10);
+        if (Number.isNaN(value)) {
+          return fallback;
+        }
+        return Math.max(min, Math.min(max, value));
+      }
+      async function fallbackRefreshJobs() {
+        setStatus("兜底刷新岗位：请求中...");
+        var response = await fetch("/api/jobs", { headers: { "Content-Type": "application/json" } });
+        var payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "刷新岗位失败");
+        }
+        var jobs = payload.jobs || [];
+        var container = document.getElementById("capturedJobList");
+        if (container) {
+          container.innerHTML = jobs.length === 0
+            ? '<div class="result-item muted">本地岗位库为空。请先在 BOSS 页面点“同步岗位到系统”。</div>'
+            : jobs.slice().reverse().map(function (job) {
+              return '<div class="result-item job-item"><div><strong>' + escapeHTML(job.title || "未知岗位") + '</strong><p>' + escapeHTML([job.company, job.location, job.salary, "匹配度 " + (job.matchScore || 0)].filter(Boolean).join("｜")) + '</p><p>' + escapeHTML(job.recommendation || "") + '</p></div></div>';
+            }).join("");
+        }
+        setStatus("兜底刷新岗位完成：" + jobs.length + " 个");
+      }
+      async function fallbackSaveStrategy() {
+        setStatus("兜底保存策略：请求中...");
+        var payload = {
+          minMatchScore: readNumber("strategyMinScoreInput", 75, 1, 100),
+          batchPrepareLimit: readNumber("strategyBatchLimitInput", 20, 1, 20),
+          minSalaryK: readNumber("strategyMinSalaryInput", 0, 0, 300),
+          maxSalaryK: readNumber("strategyMaxSalaryInput", 0, 0, 300),
+          allowUnknownSalary: !!((document.getElementById("strategyAllowUnknownSalaryInput") || {}).checked),
+          defaultChatMode: (document.getElementById("strategyChatModeInput") || {}).value || "专业稳重",
+          includeTitleKeywords: splitKeywords((document.getElementById("strategyIncludeTitleInput") || {}).value),
+          excludeTitleKeywords: splitKeywords((document.getElementById("strategyExcludeTitleInput") || {}).value),
+          includeCompanyKeywords: [],
+          excludeCompanyKeywords: splitKeywords((document.getElementById("strategyExcludeCompanyInput") || {}).value),
+          includeDescriptionKeywords: [],
+          excludeDescriptionKeywords: [],
+          greetingPrompt: ((document.getElementById("strategyGreetingPromptInput") || {}).value || "").trim()
+        };
+        var response = await fetch("/api/delivery/strategy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        var result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "保存策略失败");
+        }
+        setStatus("兜底保存策略完成");
+      }
+      async function fallbackOpenBossJobs() {
+        window.open("https://www.zhipin.com/web/geek/jobs", "_blank", "noopener");
+        setStatus("已打开 BOSS 岗位页；app.js 未加载时无法从系统页触发插件自动拉取");
+      }
+      document.addEventListener("click", function (event) {
+        if (window.jobCopilotAppLoaded) {
+          return;
+        }
+        var target = event.target.closest("#refreshJobsButton,#saveStrategyButton,#openBossJobsButton,#oneClickScanButton");
+        if (!target) {
+          return;
+        }
+        event.preventDefault();
+        var action;
+        if (target.id === "refreshJobsButton") {
+          action = fallbackRefreshJobs;
+        } else if (target.id === "oneClickScanButton") {
+          action = fallbackOpenBossJobs;
+        } else if (target.id === "openBossJobsButton") {
+          action = fallbackOpenBossJobs;
+        } else {
+          action = fallbackSaveStrategy;
+        }
+        action().catch(function (error) { setStatus(error.message || "兜底操作失败"); });
+      });
+      window.setTimeout(function () {
+        if (!window.jobCopilotAppLoaded) {
+          setStatus("app.js 未加载或执行失败，已启用兜底按钮逻辑");
+        }
+      }, 1200);
+    })();
+  </script>
+</body>
+</html>
